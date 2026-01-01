@@ -1,15 +1,9 @@
-# Spark session configuration
 from pyspark.sql import SparkSession
 
+spark = SparkSession.builder \
+    .appName("BigDataLakehouse") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .getOrCreate()
 
-def create_spark_session(app_name="DataLakeApp"):
-    """Create and return a Spark session."""
-    spark = SparkSession.builder \
-        .appName(app_name) \
-        .getOrCreate()
-    return spark
-
-
-if __name__ == "__main__":
-    spark = create_spark_session()
-    print("Spark session created successfully")
+print("✅ Spark + Delta Lake prêt")

@@ -1,21 +1,19 @@
-# Temperature sensor data generator
-import random
-import time
+import json, uuid, random, time
 from datetime import datetime
 
-
-def generate_temperature_reading():
-    """Generate a random temperature reading."""
-    return {
-        "sensor_type": "temperature",
-        "value": round(random.uniform(15.0, 35.0), 2),
-        "unit": "celsius",
+while True:
+    data = {
+        "sensor_id": str(uuid.uuid4()),
+        "type": "temperature",
+        "value": round(random.uniform(10, 90), 2),
+        "unit": "Celsius",
+        "site": random.choice(["Site_A", "Site_B"]),
+        "machine": random.choice(["Machine_1", "Machine_2", "Machine_3"]),
         "timestamp": datetime.now().isoformat()
     }
 
+    filename = f"data_lake/raw/temperature/{uuid.uuid4()}.json"
+    with open(filename, "w") as f:
+        json.dump(data, f)
 
-if __name__ == "__main__":
-    while True:
-        reading = generate_temperature_reading()
-        print(reading)
-        time.sleep(1)
+    time.sleep(random.randint(1, 3))

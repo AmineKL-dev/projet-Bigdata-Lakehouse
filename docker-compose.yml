@@ -1,11 +1,14 @@
-version: '3.8'
+version: "3.9"
 
 services:
-  app:
+  spark:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    container_name: spark-lakehouse
     volumes:
       - ./data_lake:/app/data_lake
-    environment:
-      - PYTHONUNBUFFERED=1
+      - ./sensors:/app/sensors
+      - ./spark:/app/spark
+    stdin_open: true
+    tty: true
