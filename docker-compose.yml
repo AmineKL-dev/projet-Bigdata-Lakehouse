@@ -8,7 +8,13 @@ services:
     container_name: spark-lakehouse
     volumes:
       - ./data_lake:/app/data_lake
-      - ./sensors:/app/sensors
       - ./spark:/app/spark
+      - ./sensors:/app/sensors
+    ports:
+      - "4040:4040"
+      - "8181:8080"
+    environment:
+      - SPARK_MODE=master
     stdin_open: true
     tty: true
+    command: tail -f /dev/null
