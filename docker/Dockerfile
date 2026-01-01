@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
 # Variables d'environnement
 ENV SPARK_VERSION=3.5.3
 ENV HADOOP_VERSION=3
+ENV DELTA_VERSION=3.2.0
 ENV SPARK_HOME=/opt/spark
 ENV PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin
 
@@ -25,6 +26,10 @@ RUN curl -L https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-$
     && tar -xzf spark.tgz \
     && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
     && rm spark.tgz
+
+# Téléchargement des JARs Delta Lake
+RUN curl -L https://repo1.maven.org/maven2/io/delta/delta-spark_2.12/${DELTA_VERSION}/delta-spark_2.12-${DELTA_VERSION}.jar -o $SPARK_HOME/jars/delta-spark_2.12-${DELTA_VERSION}.jar \
+    && curl -L https://repo1.maven.org/maven2/io/delta/delta-storage/${DELTA_VERSION}/delta-storage-${DELTA_VERSION}.jar -o $SPARK_HOME/jars/delta-storage-${DELTA_VERSION}.jar
 
 # Installation des dépendances Python
 COPY requirements.txt /app/requirements.txt

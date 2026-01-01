@@ -1,0 +1,46 @@
+# Données des capteurs (raw data)
+data_lake/raw/temperature/
+data_lake/raw/vibration/
+data_lake/raw/pressure/
+
+# Données Delta Lake (warehouse)
+data_lake/warehouse/
+
+# Checkpoints Spark
+data_lake/warehouse/checkpoints/
+
+# Fichiers Spark temporaires
+spark-warehouse/
+metastore_db/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.temp
+.cache/
