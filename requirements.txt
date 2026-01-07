@@ -1,0 +1,20 @@
+# InduSense Data Lakehouse - Dépendances Python
+# ==============================================
+
+# Apache Spark
+pyspark==3.5.0
+
+# Delta Lake
+delta-spark==3.0.0
+
+# Manipulation de données
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Utilitaires
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Pour les tests (optionnel)
+pytest>=7.0.0
+pytest-cov>=4.0.0

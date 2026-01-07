@@ -1,0 +1,32 @@
+
+
+# ========================
+# Jupyter / Spark
+# ========================
+.ipynb_checkpoints/
+*.parquet
+*.crc
+
+# ========================
+# Big Data / Lakehouse (TRÈS IMPORTANT)
+# ========================
+data_lake/
+checkpoints/
+warehouse/
+raw/
+reports/
+*.json
+*.csv
+
+# ========================
+# Spark / Hadoop
+# ========================
+spark-warehouse/
+metastore_db/
+derby.log
+
+# ========================
+# Delta Lake
+# ========================
+_delta_log/
+
