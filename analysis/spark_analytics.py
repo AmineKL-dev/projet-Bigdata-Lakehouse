@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Analyse décisionnelle - InduSense Data Lakehouse
-"""
+
 
 import os
 import logging
@@ -40,7 +38,7 @@ ALERT_THRESHOLDS = {
 class LakehouseAnalytics:
 
     def __init__(self):
-        logger.info("🚀 Initialisation Spark Analytics...")
+        logger.info(" Initialisation Spark Analytics...")
 
         builder = (
             SparkSession.builder
@@ -66,17 +64,17 @@ class LakehouseAnalytics:
         self.spark.sparkContext.setLogLevel("FATAL")
 
         self._load_data()
-        logger.info("✅ Environnement prêt")
+        logger.info(" Environnement prêt")
 
     # ------------------------------------------------------------------
     def _load_data(self):
         if not os.path.exists(WAREHOUSE_PATH):
-            raise FileNotFoundError("❌ Warehouse introuvable. Lance d’abord le pipeline.")
+            raise FileNotFoundError(" Warehouse introuvable. Lance d’abord le pipeline.")
 
         self.df = self.spark.read.format("delta").load(WAREHOUSE_PATH)
         self.df.createOrReplaceTempView("sensor_data")
 
-        logger.info(f"📦 {self.df.count()} enregistrements chargés")
+        logger.info(f" {self.df.count()} enregistrements chargés")
 
     # ------------------------------------------------------------------
     def _write_csv(self, df, name):
@@ -88,13 +86,13 @@ class LakehouseAnalytics:
             .option("header", "true")
             .csv(path)
         )
-        logger.info(f"💾 Rapport généré: {path}")
+        logger.info(f" Rapport généré: {path}")
 
     # ==================================================================
     # ANALYSE 1
     # ==================================================================
     def analyse_temperature_moyenne(self):
-        logger.info("📊 Analyse température moyenne")
+        logger.info(" Analyse température moyenne")
 
         query = """
         SELECT
@@ -120,7 +118,7 @@ class LakehouseAnalytics:
     # ANALYSE 2
     # ==================================================================
     def analyse_alertes_critiques(self):
-        logger.info("🚨 Analyse alertes critiques")
+        logger.info(" Analyse alertes critiques")
 
         query = f"""
         SELECT
@@ -148,7 +146,7 @@ class LakehouseAnalytics:
     # ANALYSE 3
     # ==================================================================
     def analyse_variabilite_vibration(self):
-        logger.info("📳 Analyse variabilité vibration")
+        logger.info(" Analyse variabilité vibration")
 
         query = """
         SELECT
@@ -175,7 +173,7 @@ class LakehouseAnalytics:
     # ANALYSE 4
     # ==================================================================
     def analyse_evolution_pression(self):
-        logger.info("🔵 Analyse pression horaire")
+        logger.info(" Analyse pression horaire")
 
         query = """
         SELECT
@@ -200,11 +198,11 @@ class LakehouseAnalytics:
         self.analyse_alertes_critiques()
         self.analyse_variabilite_vibration()
         self.analyse_evolution_pression()
-        logger.info("✅ Toutes les analyses terminées")
+        logger.info(" Toutes les analyses terminées")
 
     def stop(self):
         self.spark.stop()
-        logger.info("🛑 Spark arrêté proprement")
+        logger.info(" Spark arrêté proprement")
 
 
 # ------------------------------------------------------------------
@@ -212,7 +210,7 @@ class LakehouseAnalytics:
 # ------------------------------------------------------------------
 
     def export_for_powerbi(self):
-        logger.info("📊 Export des données pour Power BI")
+        logger.info(" Export des données pour Power BI")
 
         query = """
         SELECT
@@ -245,7 +243,7 @@ class LakehouseAnalytics:
             .csv(output_path)
         )
 
-        logger.info(f"💾 Export Power BI généré: {output_path}")
+        logger.info(f" Export Power BI généré: {output_path}")
 
 
 

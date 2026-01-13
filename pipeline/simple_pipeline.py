@@ -42,10 +42,10 @@ class SimplePipeline:
     """Pipeline simplifié utilisant Pandas"""
     
     def __init__(self):
-        logger.info("🚀 Initialisation du pipeline simplifié...")
+        logger.info("Initialisation du pipeline simplifié...")
         os.makedirs(WAREHOUSE_PATH, exist_ok=True)
         os.makedirs(REPORTS_PATH, exist_ok=True)
-        logger.info("✅ Pipeline initialisé")
+        logger.info("Pipeline initialisé")
     
     def load_json_files(self, sensor_type):
         """Charge tous les fichiers JSON d'un type de capteur"""
@@ -78,7 +78,7 @@ class SimplePipeline:
         df = df[df['value'] >= 0]
         
         valid_count = len(df)
-        logger.info(f"✅ Validation: {valid_count}/{initial_count} enregistrements valides")
+        logger.info(f" Validation: {valid_count}/{initial_count} enregistrements valides")
         
         return df
     
@@ -118,32 +118,32 @@ class SimplePipeline:
         output_file = os.path.join(WAREHOUSE_PATH, "sensors_data.csv")
         df.to_csv(output_file, index=False)
         
-        logger.info(f"💾 {len(df)} enregistrements sauvegardés dans {output_file}")
+        logger.info(f" {len(df)} enregistrements sauvegardés dans {output_file}")
         
         return output_file
     
     def run_pipeline(self):
         """Exécute le pipeline complet"""
         logger.info("=" * 60)
-        logger.info("🏭 Démarrage du pipeline simplifié")
+        logger.info(" Démarrage du pipeline simplifié")
         logger.info("=" * 60)
         
         all_data = []
         
         for sensor_type in SENSOR_TYPES:
-            logger.info(f"\n📂 Traitement des données {sensor_type}...")
+            logger.info(f"\nTraitement des données {sensor_type}...")
             df = self.load_json_files(sensor_type)
             if not df.empty:
                 all_data.append(df)
                 logger.info(f"   Chargé: {len(df)} mesures")
         
         if not all_data:
-            logger.warning("⚠️ Aucune donnée trouvée")
+            logger.warning("Aucune donnée trouvée")
             return None
         
         # Combiner toutes les données
         combined_df = pd.concat(all_data, ignore_index=True)
-        logger.info(f"\n📊 Total mesures brutes: {len(combined_df)}")
+        logger.info(f"\nTotal mesures brutes: {len(combined_df)}")
         
         # Pipeline: Validation → Transformation → Sauvegarde
         df_valid = self.validate_data(combined_df)
@@ -152,7 +152,7 @@ class SimplePipeline:
         
         # Statistiques
         logger.info("\n" + "=" * 60)
-        logger.info("📈 Statistiques du pipeline")
+        logger.info("Statistiques du pipeline")
         logger.info("=" * 60)
         
         stats = df_transformed.groupby('type').agg({
@@ -161,7 +161,7 @@ class SimplePipeline:
         print(stats)
         
         alert_count = df_transformed['is_alert'].sum()
-        logger.info(f"\n🚨 Alertes détectées: {alert_count}")
+        logger.info(f"\nAlertes détectées: {alert_count}")
         
         return df_transformed
     
@@ -178,11 +178,11 @@ class SimplePipeline:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
         
         logger.info("\n" + "=" * 70)
-        logger.info("🏭 ANALYSES DÉCISIONNELLES")
+        logger.info("ANALYSES DÉCISIONNELLES")
         logger.info("=" * 70)
         
         # Analyse 1: Température moyenne par site et machine
-        logger.info("\n📊 ANALYSE 1: Température moyenne par site et machine")
+        logger.info("\nANALYSE 1: Température moyenne par site et machine")
         logger.info("-" * 50)
         temp_df = df[df['type'] == 'temperature']
         temp_analysis = temp_df.groupby(['site', 'machine']).agg({
@@ -193,7 +193,7 @@ class SimplePipeline:
         temp_analysis.to_csv(os.path.join(REPORTS_PATH, "temperature_moyenne.csv"))
         
         # Analyse 2: Alertes critiques par type
-        logger.info("\n🚨 ANALYSE 2: Alertes critiques par type de capteur")
+        logger.info("\nANALYSE 2: Alertes critiques par type de capteur")
         logger.info("-" * 50)
         alert_analysis = df.groupby('type').agg({
             'is_alert': ['sum', 'count']
@@ -204,7 +204,7 @@ class SimplePipeline:
         alert_analysis.to_csv(os.path.join(REPORTS_PATH, "alertes_critiques.csv"))
         
         # Analyse 3: Top 5 variabilité vibration
-        logger.info("\n📳 ANALYSE 3: Top 5 machines - Variabilité de vibration")
+        logger.info("\n ANALYSE 3: Top 5 machines - Variabilité de vibration")
         logger.info("-" * 50)
         vib_df = df[df['type'] == 'vibration']
         vib_variability = vib_df.groupby(['machine', 'site']).agg({
@@ -216,7 +216,7 @@ class SimplePipeline:
         vib_variability.to_csv(os.path.join(REPORTS_PATH, "top5_variabilite_vibration.csv"))
         
         # Analyse 4: Évolution horaire pression
-        logger.info("\n🔵 ANALYSE 4: Évolution horaire de la pression par site")
+        logger.info("\n ANALYSE 4: Évolution horaire de la pression par site")
         logger.info("-" * 50)
         press_df = df[df['type'] == 'pressure']
         press_hourly = press_df.groupby(['site', 'hour']).agg({
@@ -227,12 +227,12 @@ class SimplePipeline:
         press_hourly.to_csv(os.path.join(REPORTS_PATH, "evolution_pression_horaire.csv"))
         
         # Export Power BI
-        logger.info("\n📊 Export pour Power BI...")
+        logger.info("\n Export pour Power BI...")
         df.to_csv(os.path.join(REPORTS_PATH, "powerbi_export.csv"), index=False)
         
         logger.info("\n" + "=" * 70)
-        logger.info("✅ ANALYSES TERMINÉES")
-        logger.info(f"📁 Rapports générés dans: {REPORTS_PATH}")
+        logger.info("ANALYSES TERMINÉES")
+        logger.info(f"Rapports générés dans: {REPORTS_PATH}")
         logger.info("=" * 70)
 
 

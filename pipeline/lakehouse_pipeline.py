@@ -101,7 +101,7 @@ class LakehousePipeline:
 
 
     def __init__(self):
-        logger.info("🚀 Initialisation du pipeline Lakehouse...")
+        logger.info("Initialisation du pipeline Lakehouse...")
 
         os.makedirs(WAREHOUSE_PATH, exist_ok=True)
         os.makedirs(CHECKPOINT_PATH, exist_ok=True)
@@ -149,7 +149,7 @@ class LakehousePipeline:
         self.spark.sparkContext.setLogLevel("FATAL")
 
 
-        logger.info("✅ Pipeline initialisé avec succès")
+        logger.info(" Pipeline initialisé avec succès")
 
 
 
@@ -167,7 +167,7 @@ class LakehousePipeline:
             logger.info(f"   Aucun fichier JSON trouvé dans {raw_path}")
             return None
 
-        logger.info(f"📂 Traitement de {len(json_files)} fichiers {sensor_type}...")
+        logger.info(f" Traitement de {len(json_files)} fichiers {sensor_type}...")
         logger.info(f"   Path: {os.path.join(raw_path, '*.json')}")
 
         df = (
@@ -178,7 +178,7 @@ class LakehousePipeline:
             .json(os.path.join(raw_path, "*.json"))
         )
 
-        logger.info(f"   ✅ Lignes lues (avant nettoyage): {df.count()}")
+        logger.info(f"    Lignes lues (avant nettoyage): {df.count()}")
 
         df = (
             df.withColumn("type", lower(trim(col("type"))))
@@ -192,7 +192,7 @@ class LakehousePipeline:
         if "_corrupt_record" in df.columns:
             corrupt_count = df.filter(col("_corrupt_record").isNotNull()).count()
             if corrupt_count > 0:
-                logger.warning(f"   ⚠️  Lignes corrompues détectées: {corrupt_count}")
+                logger.warning(f"     Lignes corrompues détectées: {corrupt_count}")
                 df.filter(col("_corrupt_record").isNotNull()).select("_corrupt_record").show(5, truncate=False)
         else:
             logger.info("   (info) Colonne _corrupt_record absente (OK).")
@@ -203,9 +203,7 @@ class LakehousePipeline:
     # VALIDATE
     # -------------------------------------------------------------------------
     def validate_data(self, df: DataFrame) -> DataFrame:
-        logger.info("🔍 Validation des données...")
-
-        initial_count = df.count()
+        logger.info(" Validation des données...")
 
         base_filter = (
             col("sensor_id").isNotNull() &
@@ -223,32 +221,39 @@ class LakehousePipeline:
 
         df_valid = df.filter(base_filter)
 
-        valid_count = df_valid.count()
-        rejected = initial_count - valid_count
-        if rejected > 0:
-            logger.warning(f"⚠️  {rejected} lignes rejetées (invalides)")
+        # 🔥 IMPORTANT : actions UNIQUEMENT en batch
+        if not df.isStreaming:
+            initial_count = df.count()
+            valid_count = df_valid.count()
+            rejected = initial_count - valid_count
 
-        logger.info(f"✅ Validation terminée: {valid_count}/{initial_count} enregistrements valides")
+            if rejected > 0:
+                logger.warning(f"  {rejected} lignes rejetées (invalides)")
+
+            logger.info(
+                f"Validation terminée: {valid_count}/{initial_count} valides"
+            )
+        else:
+            logger.info(" Validation streaming appliquée (sans count)")
+
         return df_valid
+
 
     # -------------------------------------------------------------------------
     # TRANSFORM (FIX TIMESTAMP)
     # -------------------------------------------------------------------------
     def transform_data(self, df: DataFrame) -> DataFrame:
-        logger.info("🔄 Transformation des données...")
+        logger.info("Transformation des données...")
 
-        # ts_raw: nettoyage + virgule -> point
         df2 = df.withColumn("ts_raw", trim(col("timestamp")))
         df2 = df2.withColumn("ts_raw", regexp_replace(col("ts_raw"), ",", "."))
 
-        # ✅ IMPORTANT: Spark backreference = $1 (PAS \1)
-        # micro/nano -> millis
         df2 = df2.withColumn("ts_ms", regexp_replace(col("ts_raw"), r"(\.\d{3})\d+", "$1"))
+        df2 = df2.withColumn(
+            "ts_clean",
+            regexp_replace(col("ts_ms"), r"(Z|[+-]\d{2}:?\d{2})$", "")
+        )
 
-        # enlever timezone éventuelle
-        df2 = df2.withColumn("ts_clean", regexp_replace(col("ts_ms"), r"(Z|[+-]\d{2}:?\d{2})$", ""))
-
-        # parse formats
         ts_t_ms  = to_timestamp(col("ts_clean"), "yyyy-MM-dd'T'HH:mm:ss.SSS")
         ts_sp_ms = to_timestamp(col("ts_clean"), "yyyy-MM-dd HH:mm:ss.SSS")
         ts_t     = to_timestamp(col("ts_clean"), "yyyy-MM-dd'T'HH:mm:ss")
@@ -264,24 +269,21 @@ class LakehousePipeline:
             .otherwise(ts_fb)
         )
 
-        # diagnostics si rejet
-        bad_count = df_t.filter(col("timestamp_ts").isNull()).count()
-        if bad_count > 0:
-            logger.warning(f"⚠️  {bad_count} lignes rejetées (timestamp non parsable). Exemples:")
-            df_t.filter(col("timestamp_ts").isNull()) \
-                .select("timestamp", "ts_raw", "ts_ms", "ts_clean") \
-                .limit(5).show(truncate=False)
+        # ✅ diagnostics UNIQUEMENT en batch
+        if not df.isStreaming:
+            bad_count = df_t.filter(col("timestamp_ts").isNull()).count()
+            if bad_count > 0:
+                logger.warning(f"{bad_count} lignes rejetées (timestamp non parsable)")
+        else:
+            logger.info(" Transformation streaming appliquée (sans actions)")
 
         df_t = df_t.filter(col("timestamp_ts").isNotNull())
 
-        # remplacer timestamp
         df_t = (
-            df_t.drop("timestamp")
-                .drop("ts_raw").drop("ts_ms").drop("ts_clean")
+            df_t.drop("timestamp", "ts_raw", "ts_ms", "ts_clean")
                 .withColumnRenamed("timestamp_ts", "timestamp")
         )
 
-        # partitions
         df_t = (
             df_t
             .withColumn("year", year("timestamp"))
@@ -290,42 +292,42 @@ class LakehousePipeline:
             .withColumn("hour", hour("timestamp"))
         )
 
-        # is_alert
         df_t = df_t.withColumn(
             "is_alert",
             when(
                 (col("type") == "temperature") &
-                ((col("value") < lit(ALERT_THRESHOLDS["temperature"]["min"])) |
-                 (col("value") > lit(ALERT_THRESHOLDS["temperature"]["max"]))),
-                lit(True)
+                ((col("value") < ALERT_THRESHOLDS["temperature"]["min"]) |
+                (col("value") > ALERT_THRESHOLDS["temperature"]["max"])),
+                True
             ).when(
                 (col("type") == "vibration") &
-                ((col("value") < lit(ALERT_THRESHOLDS["vibration"]["min"])) |
-                 (col("value") > lit(ALERT_THRESHOLDS["vibration"]["max"]))),
-                lit(True)
+                ((col("value") < ALERT_THRESHOLDS["vibration"]["min"]) |
+                (col("value") > ALERT_THRESHOLDS["vibration"]["max"])),
+                True
             ).when(
                 (col("type") == "pressure") &
-                ((col("value") < lit(ALERT_THRESHOLDS["pressure"]["min"])) |
-                 (col("value") > lit(ALERT_THRESHOLDS["pressure"]["max"]))),
-                lit(True)
-            ).otherwise(lit(False))
+                ((col("value") < ALERT_THRESHOLDS["pressure"]["min"]) |
+                (col("value") > ALERT_THRESHOLDS["pressure"]["max"])),
+                True
+            ).otherwise(False)
         )
 
         df_t = df_t.withColumn("ingestion_timestamp", current_timestamp())
 
-        logger.info("✅ Transformation terminée")
+        logger.info("Transformation terminée")
         return df_t
+
 
     # -------------------------------------------------------------------------
     # WRITE
     # -------------------------------------------------------------------------
     def save_to_delta(self, df: DataFrame, mode: str = "append") -> None:
-        logger.info(f"💾 Sauvegarde en Delta Lake ({mode})...")
+        logger.info(f" Sauvegarde en Delta Lake ({mode})...")
         logger.info(f"   Chemin: {WAREHOUSE_PATH}")
 
         record_count = df.count()
         if record_count == 0:
-            logger.warning("⚠️  DataFrame vide, rien à écrire en Delta.")
+            logger.warning("  DataFrame vide, rien à écrire en Delta.")
             return
 
         (
@@ -336,14 +338,14 @@ class LakehousePipeline:
             .save(WAREHOUSE_PATH)
         )
 
-        logger.info(f"✅ {record_count} enregistrements sauvegardés en Delta Lake")
+        logger.info(f"{record_count} enregistrements sauvegardés en Delta Lake")
 
     # -------------------------------------------------------------------------
     # BATCH
     # -------------------------------------------------------------------------
     def run_batch_pipeline(self, overwrite: bool = False) -> None:
-        logger.info("=" * 60)
-        logger.info("🏭 Démarrage du pipeline Lakehouse (Mode Batch)")
+        
+        logger.info("Démarrage du pipeline Lakehouse (Mode Batch)")
         logger.info("=" * 60)
 
         start = datetime.now()
@@ -358,12 +360,12 @@ class LakehousePipeline:
             logger.warning("⚠️  Aucune donnée à traiter")
             return
 
-        logger.info("🔗 Fusion des données de tous les capteurs...")
+        logger.info(" Fusion des données de tous les capteurs...")
         combined = all_dfs[0]
         for df in all_dfs[1:]:
             combined = combined.unionByName(df, allowMissingColumns=True)
 
-        logger.info(f"📊 Total mesures brutes: {combined.count()}")
+        logger.info(f" Total mesures brutes: {combined.count()}")
 
         df_valid = self.validate_data(combined)
         df_transformed = self.transform_data(df_valid)
@@ -373,16 +375,16 @@ class LakehousePipeline:
 
         duration = (datetime.now() - start).total_seconds()
         logger.info("=" * 60)
-        logger.info("📈 Résumé du pipeline")
+        logger.info(" Résumé du pipeline")
         logger.info("=" * 60)
         logger.info(f"   Durée totale: {duration:.2f} s")
         logger.info(f"   Enregistrements traités: {df_transformed.count()}")
 
         alert_count = df_transformed.filter(col("is_alert") == True).count()
-        logger.info(f"   🚨 Alertes détectées: {alert_count}")
+        logger.info(f"   Alertes détectées: {alert_count}")
 
         logger.info("=" * 60)
-        logger.info("✅ Pipeline terminé avec succès!")
+        logger.info("Pipeline terminé avec succès!")
         logger.info("=" * 60)
 
     # -------------------------------------------------------------------------
@@ -390,15 +392,15 @@ class LakehousePipeline:
     # -------------------------------------------------------------------------
     def show_warehouse_stats(self) -> None:
         logger.info("=" * 60)
-        logger.info("📊 Statistiques du Data Warehouse")
+        logger.info("Statistiques du Data Warehouse")
         logger.info("=" * 60)
 
         if not os.path.exists(WAREHOUSE_PATH):
-            logger.warning("⚠️  Le warehouse n'existe pas encore")
+            logger.warning("Le warehouse n'existe pas encore")
             return
 
         if not DeltaTable.isDeltaTable(self.spark, WAREHOUSE_PATH):
-            logger.warning("⚠️  Aucun Delta table valide trouvé (pas de _delta_log).")
+            logger.warning("Aucun Delta table valide trouvé (pas de _delta_log).")
             return
 
         df = self.spark.read.format("delta").load(WAREHOUSE_PATH)
@@ -412,14 +414,14 @@ class LakehousePipeline:
         df.groupBy("site").count().show(truncate=False)
 
         alert_count = df.filter(col("is_alert") == True).count()
-        logger.info(f"\n   🚨 Total alertes: {alert_count}")
+        logger.info(f"\n  Total alertes: {alert_count}")
 
     def stop(self) -> None:
-        logger.info("🛑 Arrêt de la session Spark...")
+        logger.info("Arrêt de la session Spark...")
         try:
             self.spark.stop()
         finally:
-            logger.info("✅ Session Spark arrêtée")
+            logger.info(" Session Spark arrêtée")
 
         # Cleanup best-effort (Windows lock friendly)
         tmp_dir = getattr(self, "_tmp_dir", None)
@@ -435,25 +437,95 @@ class LakehousePipeline:
             for i in range(6):
                 try:
                     shutil.rmtree(tmp_dir, onerror=onerror)
-                    logger.info(f"🧹 Temp supprimé: {tmp_dir}")
+                    logger.info(f" Temp supprimé: {tmp_dir}")
                     break
                 except Exception:
                     time.sleep(2)
                     if i == 5:
-                        logger.warning(f"⚠️ Temp encore verrouillé (Windows): {tmp_dir}")
+                        logger.warning(f"Temp encore verrouillé (Windows): {tmp_dir}")
+    # -------------------------------------------------------------------------
+    # REAL-TIME
+    # -------------------------------------------------------------------------
 
+    def debug_batch(self, batch_df: DataFrame, batch_id: int):
+        logger.info(f"🟢 Batch {batch_id} reçu")
+
+        output_path = os.path.join(PROCESSED_PATH, "json")
+        os.makedirs(output_path, exist_ok=True)
+
+        (
+            batch_df
+            .drop("year", "month", "day", "hour")
+            .write
+            .mode("append")
+            .json(output_path)
+        )
+
+        logger.info(f"🟢 Batch {batch_id} écrit en JSON")
+
+
+
+
+    def run_realtime_pipeline(self):
+        logger.info("📡 Démarrage du pipeline Lakehouse (Mode Real-Time)")
+        logger.info("=" * 60)
+
+        dfs = []
+
+        for sensor_type in SENSOR_TYPES:
+            raw_path = os.path.join(RAW_PATH, sensor_type)
+
+            if not os.path.exists(raw_path):
+                logger.warning(f"⚠️  Path introuvable: {raw_path}")
+                continue
+
+            logger.info(f"RAW_PATH = {RAW_PATH}")
+            logger.info(f"RAW_PATH ABS = {os.path.abspath(RAW_PATH)}")
+            logger.info(f"Streaming folder = {os.path.abspath(raw_path)}")
+
+
+            df = (
+                self.spark.readStream
+                .schema(SENSOR_SCHEMA)
+                .option("maxFilesPerTrigger", 5)
+                .json(os.path.abspath(raw_path))
+            )
+
+            dfs.append(df)
+
+        if not dfs:
+            logger.warning("Aucune source streaming trouvée")
+            return
+
+        combined = dfs[0]
+        for df in dfs[1:]:
+            combined = combined.unionByName(df, allowMissingColumns=True)
+
+        df_valid = self.validate_data(combined)
+        df_transformed = self.transform_data(df_valid)
+
+        query = (
+            df_transformed.writeStream
+            .foreachBatch(self.debug_batch)
+            .option("checkpointLocation", os.path.join(CHECKPOINT_PATH, "realtime"))
+            .trigger(processingTime="5 seconds")
+            .start()
+        )
+
+        logger.info("🚀 Pipeline Real-Time lancé (Ctrl+C pour arrêter)")
+        query.awaitTermination()
 
     # def stop(self) -> None:
-    #     logger.info("🛑 Arrêt de la session Spark...")
+    #     logger.info(" Arrêt de la session Spark...")
     #     self.spark.stop()
-    #     logger.info("✅ Session Spark arrêtée")
+    #     logger.info(" Session Spark arrêtée")
 
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Pipeline d'intégration Data Lakehouse - InduSense")
-    parser.add_argument("--mode", choices=["batch", "stats"], default="batch")
+    parser.add_argument("--mode", choices=["batch", "stats","realtime"], default="batch")
     parser.add_argument("--overwrite", action="store_true")
 
     args = parser.parse_args()
@@ -463,7 +535,9 @@ def main():
         if args.mode == "batch":
             pipeline.run_batch_pipeline(overwrite=args.overwrite)
         elif args.mode == "stats":
-            pipeline.show_warehouse_stats()
+            pipeline.show_warehouse_stats()   
+        elif args.mode == "realtime":
+            pipeline.run_realtime_pipeline()
     finally:
         pipeline.stop()
 

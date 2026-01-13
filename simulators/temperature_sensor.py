@@ -5,6 +5,7 @@ Génère des mesures de température et les dépose dans le Data Lake brut
 """
 
 import json
+import threading
 import uuid
 import random
 import time
@@ -66,7 +67,7 @@ def run_simulator(num_readings=1000, output_dir=OUTPUT_DIR):
         num_readings: Nombre de mesures à générer (minimum 1000)
         output_dir: Répertoire de sortie
     """
-    print(f"🌡️  Démarrage du simulateur de température")
+    print(f" Démarrage du simulateur de température")
     print(f"   Répertoire de sortie: {output_dir}")
     print(f"   Nombre de mesures à générer: {num_readings}")
     print("-" * 50)
@@ -78,18 +79,66 @@ def run_simulator(num_readings=1000, output_dir=OUTPUT_DIR):
         
         # Afficher le progrès
         if (i + 1) % 100 == 0:
-            print(f"   ✅ {i + 1}/{num_readings} mesures générées")
+            print(f"   {i + 1}/{num_readings} mesures générées")
         
         # Délai aléatoire entre 1 et 3 secondes (commenté pour génération rapide)
         # time.sleep(random.uniform(1, 3))
     
     print("-" * 50)
-    print(f"✅ Simulation terminée: {num_readings} mesures de température générées")
+    print(f" Simulation terminée: {num_readings} mesures de température générées")
+
+def run_realtime_simulator(output_dir, interval_sec=2):
+    stop_event = threading.Event()
+
+    """
+    Simulateur temps réel (1 événement = 1 fichier)
+    """
+    print("📡 Démarrage simulateur temperature (REAL-TIME)")
+    print(f"   Répertoire: {output_dir}")
+    print(f"   Intervalle: {interval_sec}s")
+    print("-" * 50)
+    try:
+        while not (stop_event and stop_event.is_set()):
+            reading = generate_temperature_reading()
+            filepath = save_reading(reading, output_dir)
+
+            print(
+                f"  {reading['timestamp']} | "
+                f"{reading['site']} | "
+                f"{reading['machine']} | "
+                f"{reading['value']} Celsius"
+            )
+
+            time.sleep(interval_sec)
+    except KeyboardInterrupt:
+        print("\nArrêt du simulateur temps réel.")
+
 
 if __name__ == "__main__":
-    # Obtenir le chemin absolu du répertoire de sortie
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Simulateur pression")
+    parser.add_argument(
+        "--mode",
+        choices=["batch", "realtime"],
+        default="batch"
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=2,
+        help="Intervalle en secondes (mode realtime)"
+    )
+
+    args = parser.parse_args()
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_dir, OUTPUT_DIR)
-    
-    # Lancer le simulateur avec 1000 mesures minimum
-    run_simulator(num_readings=1000, output_dir=output_dir)
+
+    if args.mode == "batch":
+        run_simulator(num_readings=1000, output_dir=output_dir)
+    else:
+        run_realtime_simulator(
+            output_dir=output_dir,
+            interval_sec=args.interval
+        )
